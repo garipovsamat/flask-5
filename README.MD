@@ -16,25 +16,21 @@ docker-compose ps
 flask_app        uwsgi --ini uwsgi.ini             Up      5000/tcp              
 nginx_proxy      nginx -g daemon off;              Up      0.0.0.0:80->80/tcp    
 postgres_db      docker-entrypoint.sh postgres     Up      0.0.0.0:5432->5432/tcp
-redis_cache      docker-entrypoint.sh redis ...    Up      0.0.0.0:6379->6379/tcp ```
+redis_cache      docker-entrypoint.sh redis ...    Up      0.0.0.0:6379->6379/tcp 
+```
 2. Проверка работоспособности
 ```bash
-curl http://localhost/health
+curl.exe http://localhost/health
 ```
 Ожидаемый ответ:
 
 ```json
 {"status":"healthy"}
+```
 3. Работа с приложением
 3.1 Создание записи (Create)
 bash
-curl -X POST http://localhost/items \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Ноутбук",
-    "description": "Игровой ноутбук",
-    "price": 999.99
-  }'
+curl.exe -X POST http://localhost/items -H "Content-Type: application/json" -d "{\"name\": \"Ноутбук\", \"description\": \"Игровой ноутбук\", \"price\": 999.99}"
 ```
 Ожидаемый ответ:
 
@@ -52,16 +48,16 @@ curl -X POST http://localhost/items \
 3.2 Получение всех записей (Read)
 ```bash
 # Первый запрос - данные из БД (кеш пропущен)
-curl -i http://localhost/items | grep X-Cache-Status
+curl.exe -I http://localhost/items | findstr X-Cache-Status
 # Должно быть: X-Cache-Status: MISS
 
 # Второй запрос - данные из кеша
-curl -i http://localhost/items | grep X-Cache-Status
-# Должно быть: X-Cache-Status: HIT 
+curl.exe -I http://localhost/items | findstr X-Cache-Status
+# Должно быть: X-Cache-Status: HIT
 ```
 3.3 Получение одной записи
 ``` bash
-curl http://localhost/items/1 
+curl.exe http://localhost/items/1
 ```
 Ожидаемый ответ:
 
@@ -77,15 +73,11 @@ curl http://localhost/items/1
 ```
 3.4 Обновление записи (Update)
 ``` bash
-curl -X PUT http://localhost/items/1 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "price": 899.99
-  }' 
+curl.exe -X PUT http://localhost/items/1 -H "Content-Type: application/json" -d "{\"price\": 899.99}"
 ```
 3.5 Удаление записи (Delete)
 ``` bash
-curl -X DELETE http://localhost/items/1 
+curl.exe -X DELETE http://localhost/items/1
 ```
 Ожидаемый ответ:
 
@@ -108,15 +100,15 @@ GET items
 TTL items
 
 # Выйти
-exit 
+exit
 ```
 4.2 Проверка Nginx кеша
 ``` bash
 # Проверить статистику кеша (если настроено)
-curl http://localhost/cache-status
+curl.exe -I http://localhost/items
 
 # Проверить заголовки кеширования
-curl -I http://localhost/items 
+curl.exe -I http://localhost/items 
 ```
 Ожидаемые заголовки:
 
@@ -128,11 +120,11 @@ Cache-Control: max-age=300
 4.3 Проверка инвалидации кеша
 ``` bash
 # Создать запись (сбрасывает кеш)
-curl -X POST http://localhost/items -H "Content-Type: application/json" -d '{"name":"Мышь","price":29.99}'
+curl.exe -X POST http://localhost/items -H "Content-Type: application/json" -d "{\"name\": \"Мышь\", \"price\": 29.99}"
 
 # Проверить что кеш сбросился
-curl -I http://localhost/items | grep X-Cache-Status
-# Должно быть: X-Cache-Status: MISS 
+curl.exe -I http://localhost/items | findstr X-Cache-Status
+# Должно быть: X-Cache-Status: MISS
 ```
 5. Управление приложением
 5.1 Просмотр логов
