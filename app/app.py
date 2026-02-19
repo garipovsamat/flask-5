@@ -12,17 +12,19 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 redis_client = None
 try:
     redis_client = redis.Redis(
-        host='redis_cache',
+        host='redis',
         port=6379,
         db=0,
         decode_responses=True,
         socket_connect_timeout=2,
-        socket_timeout=2
+        socket_timeout=2,
+        retry_on_timeout=True,
+        health_check_interval=30
     )
     redis_client.ping()
-    print("Redis connected successfully")
+    print("✅ Redis connected successfully")
 except Exception as e:
-    print(f"Redis connection failed: {e}")
+    print(f"❌ Redis connection failed: {e}")
     redis_client = None
 
 db.init_app(app)
