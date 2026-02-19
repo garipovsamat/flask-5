@@ -20,7 +20,7 @@ redis_cache      docker-entrypoint.sh redis ...    Up      0.0.0.0:6379->6379/tc
 ```
 2. Проверка работоспособности
 ```bash
-curl.exe http://localhost/health
+Invoke-WebRequest -Uri http://localhost/health -UseBasicParsing
 ```
 Ожидаемый ответ:
 
@@ -29,8 +29,8 @@ curl.exe http://localhost/health
 ```
 3. Работа с приложением
 3.1 Создание записи (Create)
-bash
-curl.exe -X POST http://localhost/items -H "Content-Type: application/json" -d "{\"name\": \"Ноутбук\", \"description\": \"Игровой ноутбук\", \"price\": 999.99}"
+``` bash
+Invoke-WebRequest -Uri http://localhost/items -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"name": "Ноутбук", "description": "Игровой ноутбук", "price": 999.99}' -UseBasicParsing
 ```
 Ожидаемый ответ:
 
@@ -48,16 +48,14 @@ curl.exe -X POST http://localhost/items -H "Content-Type: application/json" -d "
 3.2 Получение всех записей (Read)
 ```bash
 # Первый запрос - данные из БД (кеш пропущен)
-curl.exe -I http://localhost/items | findstr X-Cache-Status
-# Должно быть: X-Cache-Status: MISS
+(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
 
 # Второй запрос - данные из кеша
-curl.exe -I http://localhost/items | findstr X-Cache-Status
-# Должно быть: X-Cache-Status: HIT
+(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
 ```
 3.3 Получение одной записи
 ``` bash
-curl.exe http://localhost/items/1
+Invoke-WebRequest -Uri http://localhost/items/1 -UseBasicParsing | Select-Object -ExpandProperty Content
 ```
 Ожидаемый ответ:
 
@@ -73,11 +71,11 @@ curl.exe http://localhost/items/1
 ```
 3.4 Обновление записи (Update)
 ``` bash
-curl.exe -X PUT http://localhost/items/1 -H "Content-Type: application/json" -d "{\"price\": 899.99}"
+Invoke-WebRequest -Uri http://localhost/items/1 -Method PUT -Headers @{"Content-Type"="application/json"} -Body '{"price": 899.99}' -UseBasicParsing
 ```
 3.5 Удаление записи (Delete)
 ``` bash
-curl.exe -X DELETE http://localhost/items/1
+Invoke-WebRequest -Uri http://localhost/items/1 -Method DELETE -UseBasicParsing
 ```
 Ожидаемый ответ:
 
@@ -104,11 +102,8 @@ exit
 ```
 4.2 Проверка Nginx кеша
 ``` bash
-# Проверить статистику кеша (если настроено)
-curl.exe -I http://localhost/items
-
 # Проверить заголовки кеширования
-curl.exe -I http://localhost/items 
+(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
 ```
 Ожидаемые заголовки:
 
@@ -120,10 +115,10 @@ Cache-Control: max-age=300
 4.3 Проверка инвалидации кеша
 ``` bash
 # Создать запись (сбрасывает кеш)
-curl.exe -X POST http://localhost/items -H "Content-Type: application/json" -d "{\"name\": \"Мышь\", \"price\": 29.99}"
+Invoke-WebRequest -Uri http://localhost/items -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"name": "Мышь", "price": 29.99}' -UseBasicParsing
 
 # Проверить что кеш сбросился
-curl.exe -I http://localhost/items | findstr X-Cache-Status
+(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
 # Должно быть: X-Cache-Status: MISS
 ```
 5. Управление приложением
