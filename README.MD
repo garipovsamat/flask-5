@@ -1,11 +1,11 @@
 # Playbook: Развертывание CRUD приложения на Flask с кешированием
 1. Запуск приложения
-bash
+``` bash
 ### Запустить все сервисы
-```docker-compose up -d```
+docker-compose up -d
 
 # Проверить статус контейнеров
-docker-compose ps
+docker-compose ps ```
 Ожидаемый результат:
 
 ```text
