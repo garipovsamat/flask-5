@@ -1,7 +1,7 @@
+# app/app.py
 from flask import Flask, request, jsonify
 from models import db, Item
-import redis
-import json
+from redis_client import cache 
 import os
 
 app = Flask(__name__)
@@ -9,58 +9,11 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@db:5432/cruddb')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-redis_client = None
-try:
-    redis_client = redis.Redis(
-        host='redis',
-        port=6379,
-        db=0,
-        decode_responses=True,
-        socket_connect_timeout=2,
-        socket_timeout=2,
-        retry_on_timeout=True,
-        health_check_interval=30
-    )
-    redis_client.ping()
-    print("✅ Redis connected successfully")
-except Exception as e:
-    print(f"❌ Redis connection failed: {e}")
-    redis_client = None
-
 db.init_app(app)
 
 with app.app_context():
     db.create_all()
     print("Database tables created")
-
-def get_cache_key(endpoint, item_id=None):
-    if item_id:
-        return f"{endpoint}:{item_id}"
-    return endpoint
-
-def get_from_cache(key):
-    if redis_client:
-        try:
-            data = redis_client.get(key)
-            if data:
-                return json.loads(data)
-        except Exception as e:
-            print(f"Redis get error: {e}")
-    return None
-
-def set_in_cache(key, data, timeout=300):
-    if redis_client:
-        try:
-            redis_client.setex(key, timeout, json.dumps(data))
-        except Exception as e:
-            print(f"Redis set error: {e}")
-
-def delete_from_cache(key):
-    if redis_client:
-        try:
-            redis_client.delete(key)
-        except Exception as e:
-            print(f"Redis delete error: {e}")
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -82,40 +35,33 @@ def create_item():
     db.session.add(new_item)
     db.session.commit()
     
-    delete_from_cache(get_cache_key('items'))
+    cache.invalidate('items')
     
     return jsonify(new_item.to_dict()), 201
 
 @app.route('/items', methods=['GET'])
 def get_items():
-    cache_key = get_cache_key('items')
-    
-    cached_data = get_from_cache(cache_key)
-    if cached_data:
-        return jsonify(cached_data), 200
-    
-    items = Item.query.all()
-    items_list = [item.to_dict() for item in items]
-    
-    set_in_cache(cache_key, items_list, 300)
+    items_list = cache.get_or_set(
+        'items',
+        lambda: [item.to_dict() for item in Item.query.all()],
+        timeout=300
+    )
     
     return jsonify(items_list), 200
 
 @app.route('/items/<int:item_id>', methods=['GET'])
 def get_item(item_id):
-    cache_key = get_cache_key('item', item_id)
+    item_data = cache.get_or_set(
+        'item',
+        lambda: Item.query.get(item_id).to_dict() if Item.query.get(item_id) else None,
+        item_id=item_id,
+        timeout=300
+    )
     
-    cached_data = get_from_cache(cache_key)
-    if cached_data:
-        return jsonify(cached_data), 200
-    
-    item = Item.query.get(item_id)
-    if not item:
+    if not item_data:
         return jsonify({"error": "Item not found"}), 404
     
-    set_in_cache(cache_key, item.to_dict(), 300)
-    
-    return jsonify(item.to_dict()), 200
+    return jsonify(item_data), 200
 
 @app.route('/items/<int:item_id>', methods=['PUT'])
 def update_item(item_id):
@@ -134,8 +80,7 @@ def update_item(item_id):
     
     db.session.commit()
     
-    delete_from_cache(get_cache_key('items'))
-    delete_from_cache(get_cache_key('item', item_id))
+    cache.invalidate('items', item_id)
     
     return jsonify(item.to_dict()), 200
 
@@ -148,8 +93,7 @@ def delete_item(item_id):
     db.session.delete(item)
     db.session.commit()
     
-    delete_from_cache(get_cache_key('items'))
-    delete_from_cache(get_cache_key('item', item_id))
+    cache.invalidate('items', item_id)
     
     return jsonify({"message": "Item deleted successfully"}), 200
 
