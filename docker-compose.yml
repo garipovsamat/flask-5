@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
   db:
     image: postgres:15-alpine
     container_name: postgres_db
@@ -21,7 +20,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
   redis:
     build: ./redis
     container_name: redis_cache
@@ -37,7 +35,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Flask Application with uWSGI
   app:
     build: ./app
     container_name: flask_app
@@ -56,7 +53,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Nginx
   nginx:
     build: ./nginx
     container_name: nginx_proxy

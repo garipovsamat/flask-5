@@ -103,7 +103,6 @@ class RedisCache:
         return data
     
     def invalidate(self, endpoint: str, item_id: Optional[int] = None):
-        """Инвалидирует кэш (удаляет и список, и конкретный элемент)"""
         self.delete(endpoint)  
         if item_id:
             self.delete(endpoint, item_id)  

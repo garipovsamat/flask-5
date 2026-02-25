@@ -3,8 +3,13 @@ from flask import Flask, request, jsonify
 from models import db, Item
 from redis_client import cache 
 import os
+from prometheus_flask_exporter import PrometheusMetrics
 
 app = Flask(__name__)
+
+# Прометеус
+metrics = PrometheusMetrics(app, group_by='endpoint')
+metrics.info('app_info', 'Application info', version='1.0.0')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://user:password@db:5432/cruddb')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -15,11 +20,23 @@ with app.app_context():
     db.create_all()
     print("Database tables created")
 
+total_requests = metrics.counter(
+    'http_requests_total', 'Total HTTP Requests',
+    labels={'method': lambda: request.method, 'endpoint': lambda: request.endpoint or 'unknown'}
+)
+
+request_duration = metrics.histogram(
+    'http_request_duration_seconds', 'HTTP request duration in seconds',
+    labels={'method': lambda: request.method, 'endpoint': lambda: request.endpoint or 'unknown'}
+)
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy"}), 200
 
 @app.route('/items', methods=['POST'])
+@total_requests
+@request_duration
 def create_item():
     data = request.get_json()
     
@@ -40,6 +57,8 @@ def create_item():
     return jsonify(new_item.to_dict()), 201
 
 @app.route('/items', methods=['GET'])
+@total_requests
+@request_duration
 def get_items():
     items_list = cache.get_or_set(
         'items',
@@ -50,6 +69,8 @@ def get_items():
     return jsonify(items_list), 200
 
 @app.route('/items/<int:item_id>', methods=['GET'])
+@total_requests
+@request_duration
 def get_item(item_id):
     item_data = cache.get_or_set(
         'item',
@@ -64,6 +85,8 @@ def get_item(item_id):
     return jsonify(item_data), 200
 
 @app.route('/items/<int:item_id>', methods=['PUT'])
+@total_requests
+@request_duration
 def update_item(item_id):
     item = Item.query.get(item_id)
     if not item:
@@ -85,6 +108,8 @@ def update_item(item_id):
     return jsonify(item.to_dict()), 200
 
 @app.route('/items/<int:item_id>', methods=['DELETE'])
+@total_requests
+@request_duration
 def delete_item(item_id):
     item = Item.query.get(item_id)
     if not item:

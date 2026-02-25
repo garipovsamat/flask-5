@@ -4,3 +4,4 @@ psycopg2-binary==2.9.7
 uwsgi==2.0.23
 redis==5.0.1
 requests==2.31.0
+prometheus-flask-exporter==0.22.4
