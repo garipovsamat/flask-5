@@ -1,0 +1,24 @@
+replicaCount: 2
+
+image:
+  repository: samatgaripov/flask-app
+  tag: latest
+  pullPolicy: Always
+
+database:
+  url: "postgresql://user:password@postgres:5432/cruddb"
+
+redis:
+  host: "redis"
+
+service:
+  type: LoadBalancer
+  port: 80
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi

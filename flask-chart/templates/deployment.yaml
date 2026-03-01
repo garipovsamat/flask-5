@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nameOverride | default "flask-app" }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.nameOverride | default "flask-app" }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.nameOverride | default "flask-app" }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: 80
+        env:
+        - name: DATABASE_URL
+          value: {{ .Values.database.url | quote }}
+        - name: REDIS_HOST
+          value: {{ .Values.redis.host | quote }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

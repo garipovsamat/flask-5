@@ -1,0 +1,54 @@
+---
+- name: Deploy Flask application to k3s
+  hosts: all
+  become: yes
+  vars:
+    dockerhub_username: "samatgaripov"
+    app_name: "flask-app"
+    
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+        
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - git
+          - python3-pip
+        state: present
+        
+    - name: Install k3s
+      shell: curl -sfL https://get.k3s.io | sh -
+      args:
+        creates: /usr/local/bin/k3s
+        
+    - name: Wait for k3s to be ready
+      wait_for:
+        path: /etc/rancher/k3s/k3s.yaml
+        timeout: 60
+        
+    - name: Get kubeconfig
+      fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: ~/.kube/config
+        flat: yes
+        
+    - name: Install Helm
+      shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+        
+    - name: Copy Helm chart
+      copy:
+        src: ../flask-chart/
+        dest: /tmp/flask-chart/
+        
+    - name: Deploy with Helm
+      shell: |
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        helm upgrade --install {{ app_name }} /tmp/flask-chart \
+          --set image.repository={{ dockerhub_username }}/{{ app_name }} \
+          --set image.tag=latest
