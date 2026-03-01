@@ -1,6 +1,7 @@
 1. Подготовка виртуалки
 Требования:
 
+Выполнять все с запущенным впн
 Ubuntu 22.04/24.04
 2 CPU, 4 GB RAM, 20 GB диска
 Доступ по SSH (или напрямую)
@@ -15,59 +16,80 @@ git clone https://github.com/garipovsamat/flask-5.git
 cd flask-5
 ```
 4. Настроить inventory.ini
-Если на самой виртуалке:
+Если запуск на самой виртуалке:
 
 ```bash
 echo "[all]" > ansible/inventory.ini
 echo "localhost ansible_connection=local" >> ansible/inventory.ini
 ```
-Если по SSH:
+Если подключение по SSH (замени IP и пользователя):
 
 ```ini
 [all]
-твой_ip_адрес ansible_user=root
-(или ansible_user=ubuntu, если пользователь ubuntu)
+192.168.1.100 ansible_user=username ansible_ssh_pass=your_password
 ```
-
-5. Запустить одной командой
+5. Запустить деплой
 ```bash
 ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
 ```
-6. Проверить что всё работает
+Через 5-7 минут всё будет готово.
+
+Проверка работы
+Поды
 ```bash
-# Поды должны быть все в статусе Running
 kubectl get pods -n flask-app
+```
+API
+```bash
+# Получить порт
+kubectl get svc flask-app -n flask-app
 
-# Проверить API
-curl localhost:32185/health
-curl localhost:32185/items
+# Проверить health
+curl localhost:3xxxx/health
 
-# Создать тестовый товар
-curl -X POST localhost:32185/items \
+# Создать товар
+curl -X POST localhost:3xxxx/items \
   -H "Content-Type: application/json" \
   -d '{"name": "Тест", "price": 999}'
 
 # Получить список
-curl localhost:32185/items
+curl localhost:3xxxx/items
 ```
-7. ArgoCD 
-```bash
-# Проброс порта (в отдельном терминале)
-kubectl port-forward svc/argocd-server -n argocd 8080:443
 
-# Логин: admin
-# Пароль:
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+ArgoCD
+Доступ
+```bash
+kubectl get svc argocd-server -n argocd
 ```
-8. Если что-то не так
+# HTTPS порт вида 443:3xxxx/TCP
+Открой в браузере:
+
+```text
+https://<IP_виртуалки>:3xxxx
+Логин: admin
+Пароль: выводится в конце выполнения плейбука (или можно получить командой ниже)
+```
+
 ```bash
-# Посмотреть логи
-kubectl logs -n flask-app -l app=flask-app
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+Приложение в ArgoCD
+После входа нужно создать приложение:
 
-# Перезапустить поды
-kubectl delete pods -n flask-app --all
+Repository: https://github.com/garipovsamat/flask-5.git
 
-# Полностью очистить
-helm uninstall flask-app -n flask-app
+Path: flask-chart
+
+Namespace: flask-app
+
+Очистка
+```bash
+# Удалить namespace с приложением
 kubectl delete namespace flask-app
+
+# Удалить ArgoCD
+kubectl delete namespace argocd
+
+# Полная очистка k3s
+sudo /usr/local/bin/k3s-uninstall.sh
 ```
