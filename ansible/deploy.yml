@@ -111,3 +111,17 @@
     - name: Show ArgoCD password
       debug:
         msg: "ArgoCD admin password: {{ argocd_password.stdout }}"
+
+    - name: Patch ArgoCD server service to NodePort
+      shell: |
+        kubectl patch svc argocd-server -n argocd -p '{"spec":{"type":"NodePort"}}'
+      ignore_errors: yes
+
+    - name: Get ArgoCD NodePort
+      shell: |
+        kubectl get svc argocd-server -n argocd -o jsonpath='{.spec.ports[?(@.port==443)].nodePort}'
+      register: argocd_nodeport
+
+    - name: Show ArgoCD access URL
+      debug:
+        msg: "ArgoCD доступен по адресу: https://{{ ansible_default_ipv4.address }}:{{ argocd_nodeport.stdout }}"
