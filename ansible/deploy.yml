@@ -59,6 +59,17 @@
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
         kubectl create namespace {{ namespace }} --dry-run=client -o yaml | kubectl apply -f -
         
+    - name: Clone repository to VM
+      git:
+        repo: https://github.com/garipovsamat/flask-5.git
+        dest: /root/flask-5
+        version: main
+
+    - name: Force reinstall Helm chart
+      shell: |
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        helm uninstall {{ app_name }} -n {{ namespace }} || true
+        
     - name: Deploy with Helm
       shell: |
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml

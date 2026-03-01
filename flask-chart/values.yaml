@@ -6,10 +6,10 @@ image:
   pullPolicy: IfNotPresent
 
 database:
-  url: "postgresql://user:password@postgres:5432/cruddb"
+  url: "postgresql://user:password@{{ .Release.Name }}-postgres:5432/cruddb"
 
 redis:
-  host: "redis"
+  host: "{{ .Release.Name }}-redis"
 
 service:
   type: LoadBalancer
