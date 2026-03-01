@@ -1,143 +1,73 @@
-Playbook: Развертывание CRUD приложения на Flask с кешированием
-1. Запуск приложения
+1. Подготовка виртуалки
+Требования:
 
-``` bash
-# Запустить все сервисы
-docker-compose up -d
+Ubuntu 22.04/24.04
+2 CPU, 4 GB RAM, 20 GB диска
+Доступ по SSH (или напрямую)
 
-# Проверить статус контейнеров
-docker-compose ps 
-```
-Ожидаемый результат:
-
-```text
-     Name                    Command               State           Ports         
---------------------------------------------------------------------------------
-flask_app        uwsgi --ini uwsgi.ini             Up      5000/tcp              
-nginx_proxy      nginx -g daemon off;              Up      0.0.0.0:80->80/tcp    
-postgres_db      docker-entrypoint.sh postgres     Up      0.0.0.0:5432->5432/tcp
-redis_cache      docker-entrypoint.sh redis ...    Up      0.0.0.0:6379->6379/tcp 
-```
-2. Проверка работоспособности
+2. Установить Ansible (если нет)
 ```bash
-Invoke-WebRequest -Uri http://localhost/health -UseBasicParsing
+sudo apt update && sudo apt install ansible -y
 ```
-Ожидаемый ответ:
-
-```json
-{"status":"healthy"}
-```
-3. Работа с приложением
-3.1 Создание записи (Create)
-``` bash
-Invoke-WebRequest -Uri http://localhost/items -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"name": "Ноутбук", "description": "Игровой ноутбук", "price": 999.99}' -UseBasicParsing
-```
-Ожидаемый ответ:
-
-``` json
-{
-  "id": 1,
-  "name": "Ноутбук",
-  "description": "Игровой ноутбук",
-  "price": 999.99,
-  "created_at": "2024-01-01T12:00:00",
-  "updated_at": "2024-01-01T12:00:00"
-} 
-```
-
-3.2 Получение всех записей (Read)
+3. Скачать репозиторий
 ```bash
-# Первый запрос - данные из БД (кеш пропущен)
-(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
-
-# Второй запрос - данные из кеша
-(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
+git clone https://github.com/garipovsamat/flask-5.git
+cd flask-5
 ```
-3.3 Получение одной записи
-``` bash
-Invoke-WebRequest -Uri http://localhost/items/1 -UseBasicParsing | Select-Object -ExpandProperty Content
-```
-Ожидаемый ответ:
+4. Настроить inventory.ini
+Если на самой виртуалке:
 
-``` json
-{
-  "id": 1,
-  "name": "Ноутбук",
-  "description": "Игровой ноутбук",
-  "price": 999.99,
-  "created_at": "2024-01-01T12:00:00",
-  "updated_at": "2024-01-01T12:00:00"
-} 
+```bash
+echo "[all]" > ansible/inventory.ini
+echo "localhost ansible_connection=local" >> ansible/inventory.ini
 ```
-3.4 Обновление записи (Update)
-``` bash
-Invoke-WebRequest -Uri http://localhost/items/1 -Method PUT -Headers @{"Content-Type"="application/json"} -Body '{"price": 899.99}' -UseBasicParsing
+Если по SSH:
+
+```ini
+[all]
+твой_ip_адрес ansible_user=root
+(или ansible_user=ubuntu, если пользователь ubuntu)
 ```
-3.5 Удаление записи (Delete)
-``` bash
-Invoke-WebRequest -Uri http://localhost/items/1 -Method DELETE -UseBasicParsing
+
+5. Запустить одной командой
+```bash
+ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
 ```
-Ожидаемый ответ:
+6. Проверить что всё работает
+```bash
+# Поды должны быть все в статусе Running
+kubectl get pods -n flask-app
 
-``` json
-{"message":"Item deleted successfully"} 
+# Проверить API
+curl localhost:32185/health
+curl localhost:32185/items
+
+# Создать тестовый товар
+curl -X POST localhost:32185/items \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Тест", "price": 999}'
+
+# Получить список
+curl localhost:32185/items
 ```
-4. Проверка кеширования
-4.1 Проверка Redis кеша
-``` bash
-# Подключиться к Redis
-docker exec -it redis_cache redis-cli
+7. ArgoCD 
+```bash
+# Проброс порта (в отдельном терминале)
+kubectl port-forward svc/argocd-server -n argocd 8080:443
 
-# Посмотреть ключи
-KEYS *
-
-# Посмотреть значение кеша
-GET items
-
-# Проверить время жизни кеша
-TTL items
-
-# Выйти
-exit
+# Логин: admin
+# Пароль:
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 ```
-4.2 Проверка Nginx кеша
-``` bash
-# Проверить заголовки кеширования
-(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
-```
-Ожидаемые заголовки:
+8. Если что-то не так
+```bash
+# Посмотреть логи
+kubectl logs -n flask-app -l app=flask-app
 
-``` text
-HTTP/1.1 200 OK
-X-Cache-Status: HIT
-Cache-Control: max-age=300 
-```
-4.3 Проверка инвалидации кеша
-``` bash
-# Создать запись (сбрасывает кеш)
-Invoke-WebRequest -Uri http://localhost/items -Method POST -Headers @{"Content-Type"="application/json"} -Body '{"name": "Мышь", "price": 29.99}' -UseBasicParsing
+# Перезапустить поды
+kubectl delete pods -n flask-app --all
 
-# Проверить что кеш сбросился
-(Invoke-WebRequest -Uri http://localhost/items -UseBasicParsing).Headers
-# Должно быть: X-Cache-Status: MISS
-```
-5. Управление приложением
-5.1 Просмотр логов
-``` bash
-# Логи всех сервисов
-docker-compose logs -f
-
-# Логи конкретного сервиса
-docker-compose logs -f app
-docker-compose logs -f nginx
-docker-compose logs -f db
-docker-compose logs -f redis 
-```
-5.2 Остановка приложения
-``` bash
-# Остановить все сервисы
-docker-compose down
-
-# Остановить и удалить volumes (очистить данные)
-docker-compose down -v 
+# Полностью очистить
+helm uninstall flask-app -n flask-app
+kubectl delete namespace flask-app
 ```

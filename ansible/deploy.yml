@@ -1,10 +1,12 @@
 ---
-- name: Deploy Flask application to k3s
+- name: Deploy Flask application with k3s and Helm
   hosts: all
   become: yes
   vars:
-    dockerhub_username: "samatgaripov"
     app_name: "flask-app"
+    namespace: "flask-app"
+    dockerhub_username: "samatgaripov"
+    image_tag: "final"
     
   tasks:
     - name: Update apt cache
@@ -18,6 +20,7 @@
           - curl
           - git
           - python3-pip
+          - docker.io
         state: present
         
     - name: Install k3s
@@ -30,25 +33,55 @@
         path: /etc/rancher/k3s/k3s.yaml
         timeout: 60
         
-    - name: Get kubeconfig
-      fetch:
-        src: /etc/rancher/k3s/k3s.yaml
-        dest: ~/.kube/config
-        flat: yes
+    - name: Set kubeconfig permissions
+      shell: |
+        mkdir -p /root/.kube
+        cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+        chmod 600 /root/.kube/config
         
     - name: Install Helm
       shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
       args:
         creates: /usr/local/bin/helm
         
-    - name: Copy Helm chart
-      copy:
-        src: ../flask-chart/
-        dest: /tmp/flask-chart/
+    - name: Pull Docker image
+      shell: |
+        docker pull {{ dockerhub_username }}/{{ app_name }}:{{ image_tag }}
+        
+    - name: Save and import image to containerd
+      shell: |
+        docker save {{ dockerhub_username }}/{{ app_name }}:{{ image_tag }} -o /tmp/{{ app_name }}.tar
+        ctr -n k8s.io image import /tmp/{{ app_name }}.tar
+      ignore_errors: yes
+      
+    - name: Create namespace
+      shell: |
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        kubectl create namespace {{ namespace }} --dry-run=client -o yaml | kubectl apply -f -
         
     - name: Deploy with Helm
       shell: |
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-        helm upgrade --install {{ app_name }} /tmp/flask-chart \
+        helm upgrade --install {{ app_name }} /root/flask-5/flask-chart \
+          --namespace {{ namespace }} \
           --set image.repository={{ dockerhub_username }}/{{ app_name }} \
-          --set image.tag=latest
+          --set image.tag={{ image_tag }} \
+          --set image.pullPolicy=IfNotPresent
+      args:
+        chdir: /root/flask-5
+        
+    - name: Wait for pods
+      shell: |
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        kubectl wait --for=condition=ready pod -l app={{ app_name }} -n {{ namespace }} --timeout=60s
+      ignore_errors: yes
+      
+    - name: Show service info
+      shell: |
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        kubectl get svc -n {{ namespace }}
+      register: svc_info
+      
+    - name: Display service info
+      debug:
+        msg: "{{ svc_info.stdout }}"

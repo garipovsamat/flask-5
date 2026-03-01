@@ -2,8 +2,8 @@ replicaCount: 2
 
 image:
   repository: samatgaripov/flask-app
-  tag: latest
-  pullPolicy: Always
+  tag: final
+  pullPolicy: IfNotPresent
 
 database:
   url: "postgresql://user:password@postgres:5432/cruddb"
