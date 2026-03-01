@@ -44,15 +44,15 @@
       args:
         creates: /usr/local/bin/helm
         
-    - name: Pull Docker image
-      shell: |
-        docker pull {{ dockerhub_username }}/{{ app_name }}:{{ image_tag }}
+    # - name: Pull Docker image
+    #   shell: |
+    #     docker pull {{ dockerhub_username }}/{{ app_name }}:{{ image_tag }}
         
-    - name: Save and import image to containerd
-      shell: |
-        docker save {{ dockerhub_username }}/{{ app_name }}:{{ image_tag }} -o /tmp/{{ app_name }}.tar
-        ctr -n k8s.io image import /tmp/{{ app_name }}.tar
-      ignore_errors: yes
+    # - name: Save and import image to containerd
+    #   shell: |
+    #     docker save {{ dockerhub_username }}/{{ app_name }}:{{ image_tag }} -o /tmp/{{ app_name }}.tar
+    #     ctr -n k8s.io image import /tmp/{{ app_name }}.tar
+    #   ignore_errors: yes
       
     - name: Create namespace
       shell: |
@@ -69,7 +69,7 @@
       shell: |
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
         helm uninstall {{ app_name }} -n {{ namespace }} || true
-        
+
     - name: Deploy with Helm
       shell: |
         export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
