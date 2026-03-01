@@ -19,9 +19,10 @@ spec:
         ports:
         - containerPort: 80
         env:
+        env:
         - name: DATABASE_URL
-          value: {{ .Values.database.url | quote }}
+          value: "postgresql://user:password@{{ .Release.Name }}-postgres:5432/cruddb"
         - name: REDIS_HOST
-          value: {{ .Values.redis.host | quote }}
+          value: "{{ .Release.Name }}-redis"
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
